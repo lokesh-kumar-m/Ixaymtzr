@@ -29,55 +29,81 @@ const ExternalLink = ({ href, children }: ExternalLinkProps) => <Link href={href
 
 
 export default function App () {
-  const [arr, setArr] = useState<ExcelRow[]>([])        //Using Hooks to store the sorted data from excel sheet
-
-  const initialValues = { name: '', value: 0 }           //Using the set of default value in the form 
+  const [arr, setArr] = useState<ExcelRow[]>([])        //Using Hooks to store the sorted data 
+  const initialValues = { name: '', value: 0 }          //setting default value in the form 
   const formMethods = useRef<UseFormReturn<typeof initialValues>>(null)
-  var rawData: ExcelRow[]=[];                            //Used for storing the data before importing, from user.js and scores.js  
-  var rawDataSorted : [string, number][]= [];            //Used for storing the sorted data from above users.js and scores.js
   
-  for(let i=0;i<users.length;i++){
-    for(let j=0;j<scores.length;j++){                                     //populating rawData with userNames and their score
-      if(users[i]._id==scores[j].userId){
-        rawData.push( { name:users[i].name, score:scores[j].score} )
-      }
-    }
+  var rawData:Record<string, number[]>={};              //To store unique users and their scores in array        
+  var sortedData:ExcelRow[]=[];                         //Used to store the user and their highest score
+
+  //Initializing an empty array for each user name
+  for (let i = 0; i < users.length; i++) {              
+    rawData[users[i].name] = [];                        
   }
-  sortData(rawData,false)
+  //find the user with the userId and add the score to the array
+  for (let j = 0; j < scores.length; j++) {
+    const user = users.find(user => user._id === scores[j].userId);         
+    if(user)
+    rawData[user.name].push(scores[j].score);
+  }
+  //sort the scores of users in descending order
+  sortArray(rawData)               
+  getUniqueSortedData(rawData)
 
-
+  
   function handleSheetData (data: ExcelRow[]) {
     // replace this log with actual handling of the data
-    sortData(data,true);
+    rawData={} 
+    for (const entry of data) {
+      if (!rawData[entry.name]) {                     
+          rawData[entry.name] = [];              //if user is not present, create a empty array for that user
+      }
+      rawData[entry.name].push(entry.score);     //if user is already present in rawData, add the score to array
+    }
+    sortArray(rawData);                          //sorting user scores in descending order
+    sortedData=[];                               //Initially the sortedData has default values from user.js,scores.js hence resetting it
+    getUniqueSortedData(rawData);                //getting users, their highest score from rawData and ranking them
+    setArr(sortedData);                          //setting the state to print the data
   }
 
-  function sortData(data: ExcelRow[], flag:boolean){       //Functions requires data and boolean flag which alters the behavious slightly
-    let uniqueData: ExcelRow[]=[];                         //Used for storing sorted data from excel sheet
-    data.forEach(({ name, score }) => {
-      const existingIndex = uniqueData.findIndex(item => item.name === name);
-      if (existingIndex === -1 || score > uniqueData[existingIndex].score) {
-        if (existingIndex === -1) {                                     
-            uniqueData.push({ name, score });                       //Extracting unique users with their respective highest 
-        } else {                                                    //scores, this eleminates duplicates 
-            uniqueData[existingIndex] = { name, score };                    
+  //Getting the name, score from form and ranking them
+  //if the new score of an existing user is greater, change the users score and perform ranking
+  //if the new user does not exist add the user to the Ranking list and rank once again
+  //if the new score of an existing user is lower then discard the new values
+  function handleSubmit(newdata:{name:string,value:number}) {   
+    sortedData=[...arr];
+    let flag=false;
+    for(let element in sortedData){
+      if(sortedData[element].name==newdata.name){
+        flag=true;
+        if(sortedData[element].score<newdata.value){
+          sortedData[element].score=newdata.value;
+          break;
         }
+        break;
       }
-    });
-    uniqueData.sort((a,b)=>b.score-a.score);                         //Sorting the unique users, scores in descending order
-    if(flag){                                                        //flag===true if data is from excel sheet
-      console.log(uniqueData)                                           
-      setArr(uniqueData);                                            //Updating the state of arr
-    }else{
-      uniqueData.forEach(({ name, score }) => {                      //flag===false when data is extracted from users.js, scores.js     
-        rawDataSorted.push([name, score]);                           //using rawDataSorted so that the initial data does not 
-      });                                                            //mingle with data from excel sheet 
+    }
+    if(flag==false){
+      sortedData.push({name:newdata.name,score:newdata.value});
+    }   
+    sortedData.sort((a, b) => b.score - a.score);
+    setArr(sortedData); 
+  }
+  //Sort each user scores array in descending order
+  function sortArray(rawData: { [x: string]: any[] }){
+    for (const name in rawData) {
+      rawData[name].sort((a, b) => b - a);
     }
   }
-
-  function handleSubmit(newdata:{name:string,value:number}) {                   
-    arr.push({name:newdata.name,score:newdata.value})               //Retrieving new name and score entered by the user
-    sortData(arr,true)                                              //Appending the new data to existing scores and updating the state
-    console.log(arr)
+  //getting the user and his highest score and then sorting the data based on scores
+  //As each users scores are sorted, the first element is their highest score
+  //Rank the users based on their scores 
+  function getUniqueSortedData(unCleanData:Record<string, number[]>){
+    for (const name in unCleanData) {
+      let highScore=unCleanData[name][0]
+      sortedData.push({ name: name, score: highScore });
+    }
+    sortedData.sort((a, b) => b.score - a.score);
   }
 
   return (
@@ -148,7 +174,7 @@ export default function App () {
         <H2>Top Scores</H2>
         <VStack align="left">
           <ul>
-            {rawDataSorted.map(([name, score], index) => (
+            {sortedData.map(({name,score}, index) => (
               <li key={index}>
                 {name}: {score}
               </li>
