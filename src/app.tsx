@@ -71,7 +71,9 @@ export default function App () {
   //if the new user does not exist add the user to the Ranking list and rank once again
   //if the new score of an existing user is lower then discard the new values
   function handleSubmit(newdata:{name:string,value:number}) {   
-    sortedData=[...arr];
+    if(arr.length>0){
+      sortedData=[...arr];
+    } 
     let flag=false;
     for(let element in sortedData){
       if(sortedData[element].name==newdata.name){
